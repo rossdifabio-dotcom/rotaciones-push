@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Alertas de rotación</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1e6f5c">
+<style>
+  :root{
+    --bg:#f4f7f6; --card:#ffffff; --ink:#1b2a27; --muted:#6b7a77;
+    --accent:#1e6f5c; --accent-ink:#ffffff; --danger:#c0392b; --ok:#2e7d32; --warn:#b8860b;
+    --border:#e3e8e6;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#10201c; --card:#16302a; --ink:#eef5f2; --muted:#9db3ad; --border:#234038; }
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding:20px 16px 48px; min-height:100vh;
+  }
+  .wrap{max-width:460px;margin:0 auto;}
+  h1{font-size:1.3rem;margin:12px 0 4px;}
+  p.sub{color:var(--muted);margin:0 0 22px;font-size:.95rem;line-height:1.4;}
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:20px; margin-bottom:16px;
+  }
+  label{display:block;font-size:.85rem;color:var(--muted);margin:14px 0 6px;}
+  label:first-child{margin-top:0;}
+  select{
+    width:100%; padding:12px 14px; border-radius:10px; border:1px solid var(--border);
+    background:var(--bg); color:var(--ink); font-size:1rem; appearance:none;
+  }
+  button{
+    width:100%; padding:14px; border-radius:10px; border:none; font-size:1rem;
+    font-weight:600; cursor:pointer; margin-top:18px;
+  }
+  button.primary{background:var(--accent); color:var(--accent-ink);}
+  button.secondary{background:transparent; color:var(--accent); border:1px solid var(--accent);}
+  button:disabled{opacity:.5; cursor:default;}
+  .status{
+    margin-top:14px; padding:12px 14px; border-radius:10px; font-size:.9rem; display:none;
+  }
+  .status.show{display:block;}
+  .status.ok{background:rgba(46,125,50,.12); color:var(--ok);}
+  .status.warn{background:rgba(184,134,11,.12); color:var(--warn);}
+  .status.err{background:rgba(192,57,43,.12); color:var(--danger);}
+  .pill{
+    display:inline-block; font-size:.78rem; padding:3px 10px; border-radius:999px;
+    background:rgba(30,111,92,.12); color:var(--accent); margin-bottom:10px;
+  }
+  footer{text-align:center;color:var(--muted);font-size:.78rem;margin-top:28px;line-height:1.5;}
+  a{color:var(--accent);}
+  .hidden{display:none !important;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="pill">Residencia San José</span>
+  <h1>Alertas de rotación</h1>
+  <p class="sub">Activá las notificaciones para recibir un aviso en este teléfono apenas se vence una rotación de tu grupo, aunque tengas la pantalla bloqueada.</p>
+
+  <div class="card" id="setupCard">
+    <label for="turno">Turno</label>
+    <select id="turno">
+      <option value="mañana">Mañana</option>
+      <option value="tarde">Tarde</option>
+      <option value="noche">Noche</option>
+    </select>
+
+    <label for="grupo">Grupo</label>
+    <select id="grupo">
+      <option value="1">Grupo 1</option>
+      <option value="2">Grupo 2</option>
+      <option value="3">Grupo 3</option>
+      <option value="4">Grupo 4</option>
+    </select>
+
+    <button class="primary" id="activarBtn">Activar notificaciones</button>
+    <button class="secondary hidden" id="probarBtn">Mandar una notificación de prueba</button>
+
+    <div class="status" id="status"></div>
+  </div>
+
+  <footer>
+    ¿No te llega nada? Revisá que el teléfono tenga permiso de notificaciones para esta página,
+    y que la agregaste a la pantalla de inicio.<br><br>
+    <a href="https://script.google.com/macros/s/AKfycbz2fCVXsN8Pjv95qwlGeHudnS_W5o9kZqG9RrQ711xuBbhqqnvKomE8e_fUQnpd16n0bw/exec" target="_blank" rel="noopener">Ver el tablero de rotaciones</a>
+  </footer>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA28TDLUqJc-EH10WLYfJ1l7hprVM2-ERE",
+  authDomain: "rotaciones-san-jose.firebaseapp.com",
+  projectId: "rotaciones-san-jose",
+  storageBucket: "rotaciones-san-jose.firebasestorage.app",
+  messagingSenderId: "67673680210",
+  appId: "1:67673680210:web:a017fd73f38d0a3e48f28b"
+};
+
+const VAPID_KEY = "BOPvdj7rMh3bsrLRG85_voBO0Ptlp8UeGixAbhHkR75ieDRJcCzk9eKywcNhH0toP7IJrWIhNLSa1VOlPRVoAq4";
+const BACKEND_URL = "https://script.google.com/macros/s/AKfycbz2fCVXsN8Pjv95qwlGeHudnS_W5o9kZqG9RrQ711xuBbhqqnvKomE8e_fUQnpd16n0bw/exec";
+
+const app = initializeApp(firebaseConfig);
+
+const turnoSel = document.getElementById('turno');
+const grupoSel = document.getElementById('grupo');
+const activarBtn = document.getElementById('activarBtn');
+const probarBtn = document.getElementById('probarBtn');
+const statusEl = document.getElementById('status');
+
+const GATE_KEY = 'pushGate';
+try {
+  const saved = JSON.parse(localStorage.getItem(GATE_KEY) || 'null');
+  if (saved) { turnoSel.value = saved.turno || 'mañana'; grupoSel.value = saved.grupo || '1'; }
+} catch (e) {}
+
+let currentToken = null;
+const TOKEN_KEY = 'pushToken';
+try { currentToken = localStorage.getItem(TOKEN_KEY) || null; } catch (e) {}
+if (currentToken) { probarBtn.classList.remove('hidden'); }
+
+function showStatus(kind, msg) {
+  statusEl.className = 'status show ' + kind;
+  statusEl.textContent = msg;
+}
+
+async function postBackend(payload) {
+  const res = await fetch(BACKEND_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  });
+  return res.json();
+}
+
+async function activar() {
+  activarBtn.disabled = true;
+  try {
+    if (!('serviceWorker' in navigator) || !('Notification' in window)) {
+      showStatus('err', 'Este navegador no soporta notificaciones push. Probá con Chrome o agregá la página a la pantalla de inicio primero.');
+      return;
+    }
+    const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') {
+      showStatus('warn', 'No se dio permiso de notificaciones. Sin ese permiso no van a llegar los avisos.');
+      return;
+    }
+    const messaging = getMessaging(app);
+    const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+    if (!token) {
+      showStatus('err', 'No se pudo generar el token de notificaciones. Probá de nuevo en unos segundos.');
+      return;
+    }
+    currentToken = token;
+    try { localStorage.setItem(TOKEN_KEY, token); } catch (e) {}
+
+    const turno = turnoSel.value, grupo = grupoSel.value;
+    try { localStorage.setItem(GATE_KEY, JSON.stringify({ turno, grupo })); } catch (e) {}
+
+    const r = await postBackend({ action: 'subscribe', token, turno, grupo });
+    if (r && r.ok) {
+      showStatus('ok', 'Listo. Vas a recibir un aviso cuando se venza una rotación de Grupo ' + grupo + ' (' + turno + ').');
+      probarBtn.classList.remove('hidden');
+    } else {
+      showStatus('err', 'Hubo un problema guardando la suscripción: ' + (r && r.error || 'error desconocido'));
+    }
+  } catch (err) {
+    showStatus('err', 'Error activando notificaciones: ' + err.message);
+  } finally {
+    activarBtn.disabled = false;
+  }
+}
+
+async function probar() {
+  if (!currentToken) return;
+  probarBtn.disabled = true;
+  try {
+    const r = await postBackend({ action: 'test', token: currentToken });
+    if (r && r.ok) showStatus('ok', 'Notificación de prueba enviada. Debería llegarte en unos segundos.');
+    else showStatus('err', 'No se pudo enviar la prueba: ' + (r && r.error || ''));
+  } catch (err) {
+    showStatus('err', 'Error enviando la prueba: ' + err.message);
+  } finally {
+    probarBtn.disabled = false;
+  }
+}
+
+activarBtn.addEventListener('click', activar);
+probarBtn.addEventListener('click', probar);
+</script>
+</body>
+</html>
