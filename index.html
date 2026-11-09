@@ -4,7 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Alertas de rotación</title>
-<link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e6f5c">
 <style>
   :root{
@@ -30,10 +29,11 @@
   }
   label{display:block;font-size:.85rem;color:var(--muted);margin:14px 0 6px;}
   label:first-child{margin-top:0;}
-  select{
+  select, input[type="text"]{
     width:100%; padding:12px 14px; border-radius:10px; border:1px solid var(--border);
     background:var(--bg); color:var(--ink); font-size:1rem; appearance:none;
   }
+  input[type="text"]{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.92rem;}
   button{
     width:100%; padding:14px; border-radius:10px; border:none; font-size:1rem;
     font-weight:600; cursor:pointer; margin-top:18px;
@@ -52,6 +52,12 @@
     display:inline-block; font-size:.78rem; padding:3px 10px; border-radius:999px;
     background:rgba(30,111,92,.12); color:var(--accent); margin-bottom:10px;
   }
+  .help{
+    background:rgba(30,111,92,.06); border:1px dashed var(--border); border-radius:10px;
+    padding:12px 14px; font-size:.85rem; color:var(--muted); line-height:1.5; margin-bottom:16px;
+  }
+  .help b{color:var(--ink);}
+  .help ol{margin:8px 0 0; padding-left:18px;}
   footer{text-align:center;color:var(--muted);font-size:.78rem;margin-top:28px;line-height:1.5;}
   a{color:var(--accent);}
   .hidden{display:none !important;}
@@ -61,7 +67,16 @@
 <div class="wrap">
   <span class="pill">Residencia San José</span>
   <h1>Alertas de rotación</h1>
-  <p class="sub">Activá las notificaciones para recibir un aviso en este teléfono apenas se vence una rotación de tu grupo, aunque tengas la pantalla bloqueada.</p>
+  <p class="sub">Recibí un aviso con sonido en este teléfono apenas se vence una rotación de tu grupo, aunque tengas la pantalla bloqueada.</p>
+
+  <div class="help">
+    <b>Antes de activar, necesitás la app Pushover:</b>
+    <ol>
+      <li>Instalá "Pushover" (gratis) desde el App Store o Google Play.</li>
+      <li>Abrila y creá tu cuenta (o iniciá sesión).</li>
+      <li>En la pantalla principal de la app vas a ver tu <b>User Key</b>: una clave de letras y números. Copiala y pegala abajo.</li>
+    </ol>
+  </div>
 
   <div class="card" id="setupCard">
     <label for="turno">Turno</label>
@@ -79,39 +94,27 @@
       <option value="4">Grupo 4</option>
     </select>
 
-    <button class="primary" id="activarBtn">Activar notificaciones</button>
+    <label for="userKey">User Key de Pushover</label>
+    <input type="text" id="userKey" placeholder="Ej: u1a2B3c4D5e6F7g8H9i0J1k2L3m4N5" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+
+    <button class="primary" id="activarBtn">Guardar y activar avisos</button>
     <button class="secondary hidden" id="probarBtn">Mandar una notificación de prueba</button>
 
     <div class="status" id="status"></div>
   </div>
 
   <footer>
-    ¿No te llega nada? Revisá que el teléfono tenga permiso de notificaciones para esta página,
-    y que la agregaste a la pantalla de inicio.<br><br>
+    ¿No te llega nada? Revisá que copiaste bien la User Key y que la app Pushover tiene permiso de notificaciones y sonido en tu teléfono.<br><br>
     <a href="https://script.google.com/macros/s/AKfycbz2fCVXsN8Pjv95qwlGeHudnS_W5o9kZqG9RrQ711xuBbhqqnvKomE8e_fUQnpd16n0bw/exec" target="_blank" rel="noopener">Ver el tablero de rotaciones</a>
   </footer>
 </div>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyA28TDLUqJc-EH10WLYfJ1l7hprVM2-ERE",
-  authDomain: "rotaciones-san-jose.firebaseapp.com",
-  projectId: "rotaciones-san-jose",
-  storageBucket: "rotaciones-san-jose.firebasestorage.app",
-  messagingSenderId: "67673680210",
-  appId: "1:67673680210:web:a017fd73f38d0a3e48f28b"
-};
-
-const VAPID_KEY = "BOPvdj7rMh3bsrLRG85_voBO0Ptlp8UeGixAbhHkR75ieDRJcCzk9eKywcNhH0toP7IJrWIhNLSa1VOlPRVoAq4";
+<script>
 const BACKEND_URL = "https://script.google.com/macros/s/AKfycbz2fCVXsN8Pjv95qwlGeHudnS_W5o9kZqG9RrQ711xuBbhqqnvKomE8e_fUQnpd16n0bw/exec";
-
-const app = initializeApp(firebaseConfig);
 
 const turnoSel = document.getElementById('turno');
 const grupoSel = document.getElementById('grupo');
+const userKeyInput = document.getElementById('userKey');
 const activarBtn = document.getElementById('activarBtn');
 const probarBtn = document.getElementById('probarBtn');
 const statusEl = document.getElementById('status');
@@ -119,7 +122,11 @@ const statusEl = document.getElementById('status');
 const GATE_KEY = 'pushGate';
 try {
   const saved = JSON.parse(localStorage.getItem(GATE_KEY) || 'null');
-  if (saved) { turnoSel.value = saved.turno || 'mañana'; grupoSel.value = saved.grupo || '1'; }
+  if (saved) {
+    turnoSel.value = saved.turno || 'mañana';
+    grupoSel.value = saved.grupo || '1';
+    userKeyInput.value = saved.userKey || '';
+  }
 } catch (e) {}
 
 let currentToken = null;
@@ -142,46 +149,21 @@ async function postBackend(payload) {
 }
 
 async function activar() {
+  const userKey = userKeyInput.value.trim();
+  if (!userKey) {
+    showStatus('warn', 'Pegá primero tu User Key de Pushover (la encontrás en la app, en la pantalla principal).');
+    return;
+  }
   activarBtn.disabled = true;
   try {
-    if (!('serviceWorker' in navigator) || !('Notification' in window)) {
-      showStatus('err', 'Este navegador no soporta notificaciones push. Probá con Chrome o agregá la página a la pantalla de inicio primero.');
-      return;
-    }
-    const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
-    const perm = await Notification.requestPermission();
-    if (perm !== 'granted') {
-      showStatus('warn', 'No se dio permiso de notificaciones. Sin ese permiso no van a llegar los avisos.');
-      return;
-    }
-    const messaging = getMessaging(app);
-
-    // Si la app está abierta en primer plano, Firebase no la muestra sola: hay que mostrarla a mano.
-    onMessage(messaging, (payload) => {
-      const title = (payload.notification && payload.notification.title) || 'Rotación vencida';
-      const body = (payload.notification && payload.notification.body) || 'Hay una rotación pendiente.';
-      try {
-        reg.showNotification(title, { body: body, icon: 'icon-192.png', badge: 'icon-192.png', vibrate: [200, 100, 200] });
-      } catch (e) {
-        try { new Notification(title, { body: body, icon: 'icon-192.png' }); } catch (e2) {}
-      }
-      showStatus('ok', title + ': ' + body);
-    });
-
-    const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
-    if (!token) {
-      showStatus('err', 'No se pudo generar el token de notificaciones. Probá de nuevo en unos segundos.');
-      return;
-    }
-    currentToken = token;
-    try { localStorage.setItem(TOKEN_KEY, token); } catch (e) {}
-
     const turno = turnoSel.value, grupo = grupoSel.value;
-    try { localStorage.setItem(GATE_KEY, JSON.stringify({ turno, grupo })); } catch (e) {}
+    try { localStorage.setItem(GATE_KEY, JSON.stringify({ turno, grupo, userKey })); } catch (e) {}
+    try { localStorage.setItem(TOKEN_KEY, userKey); } catch (e) {}
+    currentToken = userKey;
 
-    const r = await postBackend({ action: 'subscribe', token, turno, grupo });
+    const r = await postBackend({ action: 'subscribe', token: userKey, turno, grupo });
     if (r && r.ok) {
-      showStatus('ok', 'Listo. Vas a recibir un aviso cuando se venza una rotación de Grupo ' + grupo + ' (' + turno + ').');
+      showStatus('ok', 'Listo. Vas a recibir un aviso con sonido cuando se venza una rotación de Grupo ' + grupo + ' (' + turno + ').');
       probarBtn.classList.remove('hidden');
     } else {
       showStatus('err', 'Hubo un problema guardando la suscripción: ' + (r && r.error || 'error desconocido'));
@@ -198,7 +180,7 @@ async function probar() {
   probarBtn.disabled = true;
   try {
     const r = await postBackend({ action: 'test', token: currentToken });
-    if (r && r.ok) showStatus('ok', 'Notificación de prueba enviada. Debería llegarte en unos segundos.');
+    if (r && r.ok) showStatus('ok', 'Notificación de prueba enviada. Debería llegarte en unos segundos, con sonido.');
     else showStatus('err', 'No se pudo enviar la prueba: ' + (r && r.error || ''));
   } catch (err) {
     showStatus('err', 'Error enviando la prueba: ' + err.message);
