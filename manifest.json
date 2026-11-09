@@ -1,7 +1,8 @@
 {
   "name": "Alertas de rotación - Residencia San José",
   "short_name": "Alertas Rotación",
-  "start_url": "/",
+  "start_url": ".",
+  "scope": ".",
   "display": "standalone",
   "background_color": "#f4f7f6",
   "theme_color": "#1e6f5c",
